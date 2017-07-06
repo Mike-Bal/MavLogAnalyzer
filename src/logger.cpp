@@ -3,22 +3,22 @@
  * @brief Provides logfile support (create, delete after application shutdown)
  * @author Martin Becker <becker@rcs.ei.tum.de>
  * @date 08.02.2015
- 
+
     This file is part of MavLogAnalyzer, Copyright 2015 by Martin Becker.
-    
+
     MavLogAnalyzer is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    
+
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
-    
+
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-    
+
  */
 
 #include <chrono>
@@ -102,7 +102,7 @@ void Logger::deleteLogfile(std::ofstream*stream) {
     unsigned int k=0;
     for (vector<ofstream*>::iterator it = _streams.begin(); it != _streams.end(); ++it, ++k) {
         if (stream == *it) {
-            _cleanup_stream(*it);            
+            _cleanup_stream(*it);
             return;
         }
     }
@@ -148,7 +148,7 @@ ofstream* Logger:: _createLogfile(std::string filename) {
         return NULL;
     } else {
         log->open(fullname.c_str());
-        cout << "Log file created: " << fullname << endl;        
+        cout << "Log file created: " << fullname << endl;
     }
     this_thread::sleep_for(milliseconds{ 5 });// FIXME: because of time resolution, we have to wait here for a while. otherwise we could be asked to create a log of logfiles, and it would oftentimes fail
     return log;
