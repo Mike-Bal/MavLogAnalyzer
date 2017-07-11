@@ -23,6 +23,7 @@
 
 #include <vector>
 #include <sstream>
+#include <tuple>
 #include <QMessageBox>
 #include <qwt_math.h>
 #include <qwt_scale_engine.h>
@@ -490,20 +491,73 @@ QWT_ABSTRACT_SERIESITEM * MavPlot::_branch_datatype_series(const Data* data, uns
     return NULL; // unrecognized data type
 }
 
+namespace {
+
+
+template <typename ST>
+std::pair<QVector<double>,QVector<double>> data2xyvect(const DataTimeseries<ST> * data, double scale) {
+    std::pair<QVector<double>,QVector<double>> ret;
+    if (!data) return ret;
+
+    ret.first = QVector<double>::fromStdVector(data->get_time());
+    const double t_datastart = data->get_epoch_datastart()/1E6;
+    for (auto& e:  ret.first) {
+        // relative time -> absolute time
+        e += t_datastart;
+    }
+    const auto sample_cnt = data->get_data().size();
+    // data to double
+    ret.second.resize(sample_cnt);
+    for (std::size_t i = 0; i< sample_cnt; ++i) {
+       ret.second[i] = data->get_data()[i]*scale;
+    }
+    return ret;
+}
+
+}
+
+//// TODO: ugly stuff, same as _branch_datatype_series()
+//bool MavPlot::data2xyvect(const Data * data, QVector<double> & xdata, QVector<double> & ydata, double scale) {
+//    const DataTimeseries<float> *const tsf = dynamic_cast<DataTimeseries<float> const*>(data);
+//    if (tsf) return data2xyvect(tsf, xdata, ydata, scale);
+
+//    const DataTimeseries<double> * tsd = dynamic_cast<DataTimeseries<double> const*>(data);
+//    if (tsd) return data2xyvect(tsd, xdata, ydata, scale);
+
+//    const DataTimeseries<unsigned int> * tsu = dynamic_cast<DataTimeseries<unsigned int> const*>(data);
+//    if (tsu) return data2xyvect(tsu, xdata, ydata, scale);
+
+//    const DataTimeseries<int> * tsi = dynamic_cast<DataTimeseries<int> const*>(data);
+//    if (tsi) return data2xyvect(tsi, xdata, ydata, scale);
+
+//    return false;
+//}
+
 // TODO: ugly stuff, same as _branch_datatype_series()
 bool MavPlot::data2xyvect(const Data * data, QVector<double> & xdata, QVector<double> & ydata, double scale) {
     const DataTimeseries<float> *const tsf = dynamic_cast<DataTimeseries<float> const*>(data);
-    if (tsf) return data2xyvect(tsf, xdata, ydata, scale);
+    if (tsf) {
+        std::tie(xdata,ydata) = ::data2xyvect(tsf, scale);
+        return true;
+    }
 
     const DataTimeseries<double> * tsd = dynamic_cast<DataTimeseries<double> const*>(data);
-    if (tsd) return data2xyvect(tsd, xdata, ydata, scale);
+    if (tsd){
+        std::tie(xdata,ydata) = ::data2xyvect(tsf, scale);
+        return true;
+    }
 
     const DataTimeseries<unsigned int> * tsu = dynamic_cast<DataTimeseries<unsigned int> const*>(data);
-    if (tsu) return data2xyvect(tsu, xdata, ydata, scale);
+    if (tsu) {
+        std::tie(xdata,ydata) = ::data2xyvect(tsf, scale);
+        return true;
+    }
 
     const DataTimeseries<int> * tsi = dynamic_cast<DataTimeseries<int> const*>(data);
-    if (tsi) return data2xyvect(tsi, xdata, ydata, scale);
-
+    if (tsi) {
+        std::tie(xdata,ydata) = ::data2xyvect(tsf, scale);
+        return true;
+    }
     return false;
 }
 
@@ -512,23 +566,22 @@ bool MavPlot::data2xyvect(const DataTimeseries<ST> * data, QVector<double> & xda
     if (!data) return false;
 
     xdata = QVector<double>::fromStdVector(data->get_time());
-    double t_datastart = data->get_epoch_datastart()/1E6;
-    for (QVector<double>::iterator it = xdata.begin(); it != xdata.end(); ++it ) {
+    const double t_datastart = data->get_epoch_datastart()/1E6;
+    for (auto& e:  xdata) {
         // relative time -> absolute time
-        *it += t_datastart;
+        e += t_datastart;
     }
 
     // data to double
-    for (typename vector<ST>::const_iterator it = data->get_data().begin(); it != data->get_data().end(); ++it) {
-        double ret;
-        if (!_convert2double(*it, ret, scale)) {
-            qDebug() << "ERROR: cannot convert given data type to double";
-            return false;
-        }
-        ydata.push_back(ret);
+    const auto sample_cnt = data->get_data().size();
+    ydata.resize(sample_cnt);
+    for (std::size_t i = 0; i< sample_cnt; ++i) {
+      ydata[i] = data->get_data()[i]*scale;
     }
     return true;
 }
+
+
 
 bool MavPlot::addData(const Data* data) {
     // first check whether we already have it...
@@ -584,40 +637,37 @@ void MavPlot::rev_markerData(const Data *const d) {
      * SCAN IN Plot
      *******************/
     // FIXME: heavy code clone from fwd_markerData()
-    QPointF xy;
     QString value;
     bool found = false;
     // find out what it is, then scan for data
     const QWT_ABSTRACT_SERIESITEM*s = _get_series(d);
-    if (s) {
-        // it's a series
-        const QwtPlotCurve *curve = dynamic_cast<const QwtPlotCurve *>(s);
-        if (curve) {
-            for (unsigned int k=0; k<curve->dataSize(); k++) {
-                xy = curve->sample(k);
-                double x = xy.x();
-                if (x < markerx) {
-                    found = true;
-                    markerx_next = x;
-                    value = QString::number(xy.y());
-                } else if (x > markerx) {
-                    break;
-                }
+    const QwtPlotCurve *curve = dynamic_cast<const QwtPlotCurve *>(s);
+    // it's a series
+    if (curve) {
+        for (unsigned int k=0; k<curve->dataSize(); k++) {
+             QPointF xy = curve->sample(k);
+            double x = xy.x();
+            if (x < markerx) {
+                found = true;
+                markerx_next = x;
+                value = QString::number(xy.y());
+            } else if (x > markerx) {
+                break;
             }
-
         }
     }
+
     // annotation
     std::vector<QwtPlotItem*>*v = _get_annotations(d);
     if (v && !found) {
         // it's an annotation...we have to go through all of them
-        for (std::vector<QwtPlotItem*>::const_iterator it = v->begin(); it != v->end(); ++it) {
+        for (auto e : *v) {
             // only support marker annotations
-            const QwtPlotMarker * m = dynamic_cast<const QwtPlotMarker*>(*it);
+            const QwtPlotMarker * m = dynamic_cast<const QwtPlotMarker*>(e);
             if (m) {
                 // we only handle vertical markers
                 if (QwtPlotMarker::VLine == m->lineStyle()) {
-                    xy = m->value();
+                     QPointF xy = m->value();
                     double x = xy.x();
                     if (x < markerx) {
                         found = true;
@@ -678,27 +728,25 @@ void MavPlot::setmin_markerData(const Data *const d) {
      * SCAN IN Plot
      *******************/
     // FIXME: code clone from rev_markerData()
-    QPointF xy;
     QString value;
     bool found = false;
     // find out what it is, then scan for data
     const QWT_ABSTRACT_SERIESITEM*s = _get_series(d);
-    if (s) {
-        // it's a series
-        const QwtPlotCurve *curve = dynamic_cast<const QwtPlotCurve *>(s);
-        if (curve) {
-            double minval = 0;
-            for (unsigned int k=0; k<curve->dataSize(); k++) {
-                QPointF xy = curve->sample(k);
-                if (k == 0 || (xy.y() < minval)) {
-                    minval = xy.y();
-                    markerx_next = xy.x();
-                    found = true;
-                }
+    const QwtPlotCurve *curve = dynamic_cast<const QwtPlotCurve *>(s);
+    // it's a series
+    if (curve) {
+        double minval = 0;
+        for (unsigned int k=0; k<curve->dataSize(); k++) {
+            QPointF xy = curve->sample(k);
+            if (k == 0 || (xy.y() < minval)) {
+                minval = xy.y();
+                markerx_next = xy.x();
+                found = true;
             }
-            value = QString::number(minval);
         }
+        value = QString::number(minval);
     }
+
 #endif
 
     // set marker to found location
@@ -725,27 +773,24 @@ void MavPlot::setmax_markerData(const Data *const d) {
      * SCAN IN Plot
      *******************/
     // FIXME: code clone from rev_markerData()
-    QPointF xy;
     QString value;
     bool found = false;
     // find out what it is, then scan for data
-    const QWT_ABSTRACT_SERIESITEM*s = _get_series(d);
-    if (s) {
-        // it's a series
-        const QwtPlotCurve *curve = dynamic_cast<const QwtPlotCurve *>(s);
-        if (curve) {
-            double maxval = 0;
-            for (unsigned int k=0; k<curve->dataSize(); k++) {
-                QPointF xy = curve->sample(k);
-                if (k == 0 || (xy.y() > maxval)) {
-                    maxval = xy.y();
-                    markerx_next = xy.x();
-                    found = true;
-                }
+    const QWT_ABSTRACT_SERIESITEM*s = _get_series(d);   
+    const QwtPlotCurve *curve = dynamic_cast<const QwtPlotCurve *>(s);
+    if (curve) {
+        double maxval = 0;
+        for (unsigned int k=0; k<curve->dataSize(); k++) {
+            QPointF xy = curve->sample(k);
+            if (k == 0 || (xy.y() > maxval)) {
+                maxval = xy.y();
+                markerx_next = xy.x();
+                found = true;
             }
-            value = QString::number(maxval);
         }
+        value = QString::number(maxval);
     }
+
 #endif
 
     // set marker to found location
@@ -772,47 +817,44 @@ void MavPlot::fwd_markerData(const Data *const d) {
      * SCAN IN Plot
      *******************/
     // FIXME: heavy code clone from rev_markerData()
-    QPointF xy;
     QString value;
     bool found = false;
     // find out what it is, then scan for data
-    const QWT_ABSTRACT_SERIESITEM*s = _get_series(d);
-    if (s) {
-        // it's a series
-        const QwtPlotCurve *curve = dynamic_cast<const QwtPlotCurve *>(s);
-        if (curve) {
-            for (unsigned int k=0; k<curve->dataSize(); k++) {
-                xy = curve->sample(k);
-                double x = xy.x();
-                if (x > markerx) {
-                    found = true;
-                    markerx_next = x;
-                    value = QString::number(xy.y());
-                    break;
-                }
+    const QwtPlotCurve *curve = dynamic_cast<const QwtPlotCurve *>(_get_series(d));
+    if (curve) {
+        for (unsigned int k=0; k<curve->dataSize(); k++) {
+            QPointF xy = curve->sample(k);
+            double x = xy.x();
+            if (x > markerx) {
+                found = true;
+                markerx_next = x;
+                value = QString::number(xy.y());
+                break;
             }
-
         }
+
     }
-    // annotation
-    std::vector<QwtPlotItem*>*v = _get_annotations(d);
-    if (v && !found) {
-        // it's an annotation...we have to go through all of them
-        for (std::vector<QwtPlotItem*>::const_iterator it = v->begin(); it != v->end(); ++it) {
-            // only support marker annotations
-            const QwtPlotMarker * m = dynamic_cast<const QwtPlotMarker*>(*it);
-            if (m) {
-                // we only handle vertical markers
-                if (QwtPlotMarker::VLine == m->lineStyle()) {
-                    xy = m->value();
-                    double x = xy.x();
-                    if (x > markerx) {
-                        found = true;
-                        markerx_next = x;
-                        value = m->label().text();
-                        break;
-                    }
-                }
+    if (!found) {
+        // annotation
+        const std::vector<QwtPlotItem*>* v = _get_annotations(d);
+        if (v) {
+            // it's an annotation...we have to go through all of them
+            auto pos = std::find_if(v->begin(),v->end(),
+                        [markerx](const QwtPlotItem* item)
+                        {
+                            const QwtPlotMarker * m = dynamic_cast<const QwtPlotMarker*>(item);
+                            if (m && m->lineStyle() == QwtPlotMarker::VLine) {
+                                QPointF xy = m->value();
+                                return xy.x() > markerx;
+                            }
+                            return false;
+                        });
+
+            if (pos != v->end()) {
+                auto m  = dynamic_cast<const QwtPlotMarker*>(*pos);
+                found = true;
+                markerx_next = m->value().x();
+                value = m->label().text();
             }
         }
     }
