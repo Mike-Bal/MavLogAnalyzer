@@ -46,21 +46,14 @@ private:
     /********************************************
      *  MEMBER VARIABLES
      ********************************************/
-    unsigned int _n; ///< number of events stored
+    unsigned int _n = 0; ///< number of events stored
     std::vector<T>      _elems_data;    ///< only used if keepitems=true
     std::vector<double> _elems_time;    ///< only used if keepitems=true
 
     T _dummy_item; ///< needed when empty
 
 public:    
-    DataEvent(std::string name) : DataTimed(name), _n(0) {  }
-
-    // copy CTOR (DONE)
-    DataEvent(const DataEvent & other) : DataTimed(other) {
-        _n = other._n;
-        _elems_data = other._elems_data; // deep copy by STL
-        _elems_time = other._elems_time;
-    }
+    DataEvent(std::string name) : DataTimed(name) {  }
 
     // implements Data::clear()
     void clear() {

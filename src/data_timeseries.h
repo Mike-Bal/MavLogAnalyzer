@@ -76,22 +76,6 @@ public:
         _valid = false;
     }
 
-    // copy CTOR (DONE)
-    DataTimeseries(const DataTimeseries & other) : DataTimed(other) {
-        _keepitems = other._keepitems;
-        _min_valid = other._min_valid;
-        _max_valid = other._max_valid;
-        _n = other._n;
-        _sqsum = other._sqsum;
-        _sum = other._sum;
-        _elems_data = other._elems_data; // deep copy by STL
-        _elems_time = other._elems_time;
-        _max = other._max;
-        _min = other._min;
-        _max_t = other._max_t;
-        _min_t = other._min_t;
-    }
-
     /**
      * @brief create a new averaged (moving window) dataseries
      * based on the current one.
@@ -609,7 +593,7 @@ private:
     double          _max_t;
     double          _min_t;
     bool            _max_valid;
-    bool            _min_valid;    
+    bool            _min_valid;
 };
 
 #endif // DATA_TIMESERIES_H

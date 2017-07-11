@@ -33,11 +33,6 @@ public:
     // CTOR
     DataTimed(std::string name) : Data(name), _bad_timestamps (false) { }
 
-    // copy CTOR
-    DataTimed(const DataTimed & other) : Data(other) {
-        _bad_timestamps = other._bad_timestamps;
-    }
-
     /**
      * @brief some timeseries do not have reliable time annotations
      * @return

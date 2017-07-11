@@ -29,28 +29,44 @@
 #include "datagroup.h"
 #include "debugtype.h"
 
-class Data : public TreeItem
+//Inherit from UidProvider in order to get an unique _id
+template<class T>
+class UidProvider {
+public:
+    /**
+     * @brief get_id
+     * @return each instance has a unique number. You can get it with this.
+     */
+    unsigned int get_id() const { return _id; }
+protected:
+    UidProvider()
+        : _id(_autoincrement++)
+    {}
+    UidProvider(const UidProvider&)
+        : _id(_autoincrement++)
+    {}
+    UidProvider(UidProvider&& other)
+        : _id(other._id)
+    {
+        other._id = 0;
+    }
+
+private:
+    unsigned int _id;
+    static unsigned int _autoincrement ; ///< every data class get's a unique ID here.
+};
+
+template<class T>
+unsigned int UidProvider<T>::_autoincrement = 0; ///< initial value
+
+class Data : public TreeItem, public UidProvider<Data>
 {
 public:
     // CTOR
     Data(std::string name) : _valid (false), _name(name), _class(DATA_RAW), _time_epoch_datastart_usec(0), _deferredLoad(false), _dbid(0) {
-        _id = _autoincrement++;
+//        _id = _autoincrement++;
         itemtype=DATA;
         parent = NULL;
-    }
-
-    // copy CTOR
-    Data(const Data & other) {
-        _id = _autoincrement++; // ID is always unique
-        parent = other.parent;
-        itemtype = other.itemtype;
-        _valid = other._valid;
-        _class = other._class;
-        _name = other._name;
-        _time_epoch_datastart_usec = other._time_epoch_datastart_usec;
-        _units = other._units;
-        _deferredLoad = other._deferredLoad;
-        _dbid = other._dbid;
     }
 
     /**
@@ -210,12 +226,6 @@ public:
     }       
 
     /**
-     * @brief get_id
-     * @return each instance has a unique number. You can get it with this.
-     */
-    unsigned int get_id() const { return _id; }
-
-    /**
      * @brief set data to be loaded on demand. the parameter gives the ID in the database
      */    
     void set_deferred(unsigned long long dbid) { _deferredLoad = true; _dbid = dbid; }
@@ -252,11 +262,10 @@ protected:
     /***********************************
      *  DATA MEMBERS: must not be anythign w/o copy CTOR
      ***********************************/
-    unsigned int        _id; ///< unique ID that every class instance is assigned
+
     bool                _valid;
     std::string         _name;    
     data_classifier_e   _class;
-    static unsigned int _autoincrement; ///< every data class get's a unique ID here.
     unsigned long       _time_epoch_datastart_usec; ///< absolute time when the data starts, expressed in epoch usec
     std::string         _units;
 

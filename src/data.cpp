@@ -23,4 +23,4 @@
 
 #include "data.h"
 
-unsigned int Data::_autoincrement = 0; ///< initial value
+
