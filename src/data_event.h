@@ -46,7 +46,7 @@ private:
     /********************************************
      *  MEMBER VARIABLES
      ********************************************/
-    unsigned int _n = 0; ///< number of events stored
+    std::size_t _n = 0; ///< number of events stored
     std::vector<T>      _elems_data;    ///< only used if keepitems=true
     std::vector<double> _elems_time;    ///< only used if keepitems=true
 

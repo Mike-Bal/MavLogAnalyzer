@@ -202,7 +202,7 @@ public:
                 first = false;
             }
             //assert(t >= t_pre);
-            if (!t >= t_pre) {
+            if (t < t_pre) {
                 std::cerr << "time is non-monotonic in data " << this->get_fullname(this) << std::endl;
                 return false;
             }
@@ -599,7 +599,7 @@ public:
     }
 
 private:
-    unsigned int    _n;
+    std::size_t    _n;
     bool            _keepitems;    
 
     // FIXME: this storage format is not all that good...pairs would be nicer, but are harder to access
