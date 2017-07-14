@@ -51,13 +51,13 @@ class DataTimeseries : public DataTimed {
 private:
     typedef std::pair<double,T> datapair; ///< one item in the timeline is this
 
+public:
     struct TimedSample{
         double time;
         T data;
         bool operator<(const TimedSample& r){ return time < r.time; }
     };
 
-public:
     /**
      * @brief Statistics
      * @param keepitems if true then individual items are stored.
@@ -254,6 +254,18 @@ public:
             return true;
         }
     }
+    TimedSample get_data_at_time(double timeinstant) const {
+        TimedSample sample{};
+        sample.time = timeinstant;
+        auto success =  get_data_at_time(timeinstant, sample.data);
+        if (!success) {
+            std::stringstream ss;
+            ss << "Could not find or interpolate data for time instant" << timeinstant
+               << " in timed series \"" << get_fullname <<"\"";
+            throw std::out_of_range(ss.str());
+        }
+        return sample;
+    }
 
     /**
      * @brief get_min_time
@@ -402,6 +414,17 @@ public:
         return true;
     }
 
+    TimedSample get_data(unsigned int index) const {
+        if (index > _n) {
+            std::stringstream ss;
+            ss << "Tried to access " << index <<" th element "
+               << "in timed series \"" << get_fullname <<"\n ,"
+               << "which only has " << _n << " elements.";
+            throw std::out_of_range(ss.str());
+        }
+        return { _elems_time[index], _elems_data[index]};
+   }
+
     /**
      * @brief how many elements are stored?
      * @return
@@ -529,14 +552,12 @@ public:
             //merge time and data arrays into one array (SOA to AOS) for both our data and other data
             std::vector<TimedSample> own(_elems_time.size());
             for (size_t cnt = 0; cnt < _elems_time.size(); cnt++) {
-                TimedSample s = {_elems_time[cnt], _elems_data[cnt]};
-                own[cnt] = s;
+                own[cnt] = TimedSample{_elems_time[cnt], _elems_data[cnt]};
             }
 
             std::vector<TimedSample> others(src->_elems_time.size());
             for (size_t cnt = 0; cnt < src->_elems_time.size(); cnt++) {
-                TimedSample s = {src->_elems_time[cnt] - dt_sec, src->_elems_data[cnt]};
-                others[cnt] = s;
+                others[cnt] = TimedSample{src->_elems_time[cnt] - dt_sec, src->_elems_data[cnt]};
             }
 
             //merge the two series
