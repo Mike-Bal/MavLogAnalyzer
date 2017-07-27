@@ -27,20 +27,65 @@
 #include <inttypes.h>
 #include <string>
 #include <map>
+#include <vector>
+#include <tuple>
+#include <algorithm>
 
 
 class OnboardData
 {
-public:
-
     /**********************************
      *  TYPES
      **********************************/
-    typedef std::map<std::string, float> floatdata_t;
-    typedef std::map<std::string, int64_t> intdata_t;
-    typedef std::map<std::string, uint64_t>  uintdata_t;
-    typedef std::map<std::string, bool> booldata_t;
-    typedef std::map<std::string, std::string> stringdata_t;
+    template<class K, class T>
+    struct FlatMap {
+        using mapped_type = T;
+        using key_type = K;
+
+    private:
+        using Entry_t = std::pair<key_type, mapped_type>;
+        using Store_t = std::vector<Entry_t>;
+
+    public:
+        using iterator       = typename Store_t::iterator;
+        using const_iterator = typename Store_t::const_iterator;
+
+        iterator begin()    { return items.begin();}
+        iterator end()      { return items.end();}
+        const_iterator begin()  const { return items.begin();}
+        const_iterator end()    const { return items.end();}
+
+        iterator find(const std::string& s) {
+            return std::find_if(items.begin(),items.end(),[&](const Entry_t& e){ return s == e.first; });
+        }
+        const_iterator find(const std::string& s) const {
+            return std::find_if(items.begin(),items.end(),[&](const Entry_t& e){ return s == e.first; });
+        }
+
+        mapped_type& operator[](const std::string& s) {
+            auto it = find(s);
+            if ( it != end() ) {
+                return it->second;
+            } else {
+                items.emplace_back(s,T{});
+                return items.back().second;
+            }
+        }
+
+    private:
+        Store_t items;
+    };
+
+public:
+    typedef FlatMap<std::string, float>         floatdata_t;
+    typedef FlatMap<std::string, int64_t>       intdata_t;
+    typedef FlatMap<std::string, uint64_t>      uintdata_t;
+    typedef FlatMap<std::string, bool>          booldata_t;
+    typedef FlatMap<std::string, std::string>   stringdata_t;
+
+
+
+
 
     /**********************************
      *  METHODS
