@@ -563,8 +563,8 @@ public:
             //merge the two series
 
             //c++11:
-            //    assert(std::is_sorted(own.begin(),own.end()),"Other data is not sorted");
-            //    assert(std::is_sorted(others.begin(),others.end()),"Other data is not sorted");
+            assert(std::is_sorted(own.begin(),own.end()));
+            assert(std::is_sorted(others.begin(),others.end()));
 
             const size_t total_size = _elems_time.size() + src->_elems_time.size();
             std::vector<TimedSample> merged(total_size);
