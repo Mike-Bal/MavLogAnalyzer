@@ -1096,7 +1096,7 @@ bool DBConnector::loadDataGroup(Data*d, DialogProgressBar*dlgprogress) {
         cerr << "Data is of type EVENT...fetching event map." << endl;
         if (_getReverseEventsFromDB(revents)) {
             cerr << "ERROR fetching event map from database." << std::endl;
-            return -1;
+            return false;
         }
     }
 
