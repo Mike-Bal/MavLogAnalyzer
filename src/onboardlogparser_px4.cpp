@@ -46,24 +46,17 @@
 
 using namespace std;
 
-OnboardLogParserPX4::OnboardLogParserPX4() : _filename(""), _logchannel(NULL), _consumed(0)
+OnboardLogParserPX4::OnboardLogParserPX4()
+    : _filename("")
+    , _logchannel(NULL)
 {
     // bootstrap
     _register_fmt(0x80, 89, "FMT", "BBnNZ", "Type,Length,Name,Format,Labels");
 }
 
-OnboardLogParserPX4::~OnboardLogParserPX4() {
-    _filebuf.close();
-}
-
 std::string OnboardLogParserPX4::_filebuf_get_string(unsigned int len) {
-    std::string ret;
-    for (unsigned int k=0; k < len; k++) {
-        int c = _filebuf.sbumpc();
-        if (char_traits<char>::eof() == c) break;
-        ret += (char(c));
-        _consumed++;
-    }
+    std::string ret(len,'\0');
+    _filebuf.read(&ret[0],len);
     return ret;
 }
 
@@ -110,6 +103,14 @@ void OnboardLogParserPX4::_register_fmt(int typ, int len, const std::string & na
     _formats.insert(std::make_pair(typ, fmt));
 }
 
+template <typename T>
+T OnboardLogParserPX4::_filebuf_get() {
+    T var;
+    // FIXME: endianness. assumes all is little
+    _filebuf.read((char*)&var,sizeof(var));
+    return var;
+}
+
 void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret) {
     if (fmt.length < PX4_HEADERLEN) {
         ret._valid = false;
@@ -122,7 +123,7 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
     ret._msgname_readable = _make_readable_name(ret._msgname_orig); // .. but to the user we want to show pretty names
 
     // we later check that we dont actually not read more than rem
-    _filebuf_resetcount();
+    std::streamsize consumed=0;
 
     // all fields
     for (unsigned f = 0; f < fmt.format.size(); f++) {
@@ -133,49 +134,49 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
         switch (fieldtype) {
         case 'i': // int32_t - OK
         {
-            int32_t v; _filebuf_get(v);
+            int32_t v = _filebuf_get<int32_t>();
             ret._int_data[fieldlabel] = v;
         }
             break;
 
         case 'h': // int16_t - OK
         {
-            int16_t v; _filebuf_get(v);
+            int16_t v = _filebuf_get<int16_t>();
             ret._int_data[fieldlabel] = v;
         }
             break;
 
         case 'Q': // Uint64
         {
-            uint64_t v; _filebuf_get(v);
+            uint64_t v = _filebuf_get<uint64_t>();
             ret._uint_data[fieldlabel] = v;
         }
             break;
 
         case 'q': //Int64
         {
-            int64_t v; _filebuf_get(v);
+            int64_t v = _filebuf_get<int64_t>();
             ret._int_data[fieldlabel] = v;
         }
             break;
 
         case 'b': // int8_t - OK
         {
-            int8_t v; _filebuf_get(v);
+            int8_t v = _filebuf_get<int8_t>();
             ret._int_data[fieldlabel] = v;
         }
             break;
 
         case 'I': // uint32_t - OK
         {
-            uint32_t v; _filebuf_get(v);
+            uint32_t v = _filebuf_get<uint32_t>();
             ret._uint_data[fieldlabel] = v;
         }
             break;
 
         case 'H': // uint16_t - OK
         {
-            uint16_t v; _filebuf_get(v);
+            uint16_t v = _filebuf_get<uint16_t>();
             ret._uint_data[fieldlabel] = v;
         }
             break;
@@ -183,14 +184,14 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
         case 'M': // mode-string - OK
         case 'B': // uint8_t
         {
-            uint8_t v; _filebuf_get(v);
+            uint8_t v = _filebuf_get<uint8_t>();
             ret._uint_data[fieldlabel] = v;
         }
             break;
 
         case 'L': // int32_t -> but encodes a float - OK
         {
-            int32_t v; _filebuf_get(v);
+            int32_t v = _filebuf_get<int32_t>();
             float vf = v*1E-7;
             ret._float_data[fieldlabel] = vf;
         }
@@ -198,7 +199,7 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
 
         case 'E': // uint32_t*100 - OK
         {
-            uint32_t v; _filebuf_get(v);
+            uint32_t v =  _filebuf_get<uint32_t>();
             float vf = v*1E-2;
             ret._float_data[fieldlabel] = vf;
         }
@@ -206,7 +207,7 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
 
         case 'e': // int32_t*100 - OK
         {
-            int32_t v; _filebuf_get(v);
+            int32_t v = _filebuf_get<int32_t>();
             float vf = v*1E-2;
             ret._float_data[fieldlabel] = vf;
         }
@@ -214,7 +215,7 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
 
         case 'C': // uint16*100 - ok
         {
-            uint16_t v; _filebuf_get(v);
+            uint16_t v = _filebuf_get<int16_t>();
             float vf = v*1E-2;
             ret._float_data[fieldlabel] = vf;
         }
@@ -222,7 +223,7 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
 
         case 'c': // int16*100 -> but is given as float - OK
         {
-            int16_t v; _filebuf_get(v);
+            int16_t v =  _filebuf_get<int16_t>();
             float vf = v*1E-2;
             ret._float_data[fieldlabel] = vf;
         }
@@ -230,7 +231,7 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
 
         case 'f': // float - OK
         {
-            float v; _filebuf_get(v);
+            float v = _filebuf_get<float>();
             ret._float_data[fieldlabel] = v;
         }
             break;
@@ -259,11 +260,13 @@ void OnboardLogParserPX4::_parse_message(const msgformat & fmt, OnboardData& ret
         default:
             // unknown datatypes are ignored...
             _log(MSG_ERR, stringbuilder() << "OnboardLogParserPX4::_parse_message: unknown field type: "<< fieldtype <<"; rest of this message (" + fmt.name + ") might by garbage ");
+            (void) _filebuf.peek(); // sets number of successful characters extracted (as reported by gcount) to zero
             break;
         }
+        consumed+=_filebuf.gcount();
     }
 
-    if (LEN != _filebuf_getcount()) {
+    if (LEN != consumed) {
         ret._valid = false;
         _log(MSG_ERR, stringbuilder() << "OnboardLogParserPX4::_parse_message: message \"" + fmt.name + "\" inconsistent. Ignoring it.");
     } else {
@@ -287,9 +290,9 @@ OnboardData OnboardLogParserPX4::get_data(void) {
             if (it->second.name == "FMT") {
                 // defines more messages
                 // FMT message is build like follows:
-                int type = _filebuf.sbumpc();
+                int type = _filebuf.get();
                 //_log(MSG_INFO, stringbuilder() << "OnboardLogParserPX4: got FMT (" << type <<")" );
-                int length = _filebuf.sbumpc();
+                int length =  _filebuf.get();
                 std::string name = _filebuf_get_string(4);
                 std::string fmt = _filebuf_get_string(16);
                 std::string labels = _filebuf_get_string(64);
@@ -318,8 +321,8 @@ bool OnboardLogParserPX4::_get_next_message(int&ret) {
 
     bool found = false;
     for(;;) {
-        ret = _filebuf.sbumpc(); // read current and proceed -> at second header byte now
-        if (PX4_HEAD1 == ret && PX4_HEAD2 == _filebuf.sgetc()) {
+        ret = _filebuf.get(); // read current and proceed -> at second header byte now
+        if (PX4_HEAD1 == ret && PX4_HEAD2 == _filebuf.get()) {
             found = true;
             break;
         }
@@ -328,8 +331,7 @@ bool OnboardLogParserPX4::_get_next_message(int&ret) {
     if (!found) return false;
 
     // return type
-    ret = _filebuf.snextc(); // proceed and read -> ptr is now on the type (3rd header field)
-    _filebuf.snextc(); // now points to first payload
+    ret = _filebuf.get(); // proceed and read -> ptr is now on the type (3rd header field)
     return true;
 }
 
@@ -337,7 +339,7 @@ bool OnboardLogParserPX4::_get_next_message(int&ret) {
 bool OnboardLogParserPX4::has_more_data(void) {
     if (!valid) return false;
 
-    return (_filebuf.sgetc() != std::char_traits<char>::eof());
+    return (_filebuf.peek() != std::char_traits<char>::eof());
 }
 
 bool OnboardLogParserPX4::Load (std::string filename, Logger::logchannel * ch) {

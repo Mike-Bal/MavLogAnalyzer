@@ -34,7 +34,6 @@ class OnboardLogParserPX4 : public OnboardLogParser
 {
 public:
     OnboardLogParserPX4();
-    ~OnboardLogParserPX4();
 
     // implement OnboardLogParser::get_data
     OnboardData get_data(void);
@@ -75,38 +74,15 @@ private:
 
     // generic type reader
     template <typename T>
-    void _filebuf_get(T &var) {
-        // FIXME: endianness. assumes all is little
-        const int LEN = sizeof(T);
-        if (LEN <= 0) return;
-
-        char*p = (char*)&var;
-        for (int l=0; l<LEN; l++) {
-            *p++ = (char)_filebuf.sbumpc();
-        }
-
-        // that doesn't work, because filebuf::pubseekoff() is not always seeking
-        //_filebuf.sgetn((char*)&var, LEN);
-        //_filebuf.pubseekoff(LEN, std::ios_base::cur,std::ios_base::in); // consume -> not working. why??!
-        _consumed += LEN;
-    }
-    // count consumption
-    unsigned int _filebuf_getcount(void) const {
-        return _consumed;
-    }
-    // reset consumption counter
-    void _filebuf_resetcount(void) {
-        _consumed = 0;
-    }
+    T _filebuf_get();
 
 
     /*******************
      * ATTRIBUTES
      *******************/
     std::string _filename;
-    std::filebuf _filebuf;
+    std::ifstream _filebuf;
     Logger::logchannel*_logchannel;
-    unsigned int _consumed;
 
     // hash table for formats
     typedef std::map<int, msgformat> formatmap;
