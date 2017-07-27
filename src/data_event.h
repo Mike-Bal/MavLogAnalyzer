@@ -105,7 +105,7 @@ public:
         std::stringstream ss;
         ss<< "Data: EVENT" << std::endl <<
              "type: " << get_typename() << ", " << _verbose_data_class() << std::endl <<
-             "name: " << Data::get_fullname(dynamic_cast<const Data*const>(this)) << std::endl <<
+             "name: " << Data::get_fullname(this) << std::endl <<
              "#data points: " << _n << std::endl;
 
         return ss.str();
