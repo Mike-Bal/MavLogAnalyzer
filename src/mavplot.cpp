@@ -565,18 +565,13 @@ template <typename ST>
 bool MavPlot::data2xyvect(const DataTimeseries<ST> * data, QVector<double> & xdata, QVector<double> & ydata, double scale) {
     if (!data) return false;
 
-    xdata = QVector<double>::fromStdVector(data->get_time());
-    const double t_datastart = data->get_epoch_datastart()/1E6;
-    for (auto& e:  xdata) {
-        // relative time -> absolute time
-        e += t_datastart;
-    }
-
-    // data to double
-    const auto sample_cnt = data->get_data().size();
+    const auto sample_cnt = data->size();
+    xdata.resize(sample_cnt);
     ydata.resize(sample_cnt);
+    const double t_datastart = data->get_epoch_datastart()/1E6;
     for (std::size_t i = 0; i< sample_cnt; ++i) {
-      ydata[i] = data->get_data()[i]*scale;
+      xdata[i] = data->get_timed_data()[i].time+t_datastart;
+      ydata[i] = data->get_timed_data()[i].data*scale;
     }
     return true;
 }

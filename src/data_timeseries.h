@@ -55,7 +55,8 @@ public:
     struct TimedSample{
         double time;
         T data;
-        bool operator<(const TimedSample& r){ return time < r.time; }
+        bool operator<(const TimedSample& r) const { return time < r.time; }
+        operator datapair() const { return {time,data};}
     };
 
     /**
@@ -85,21 +86,23 @@ public:
     void moving_average(DataTimeseries<T> & other, float windowlen_sec) const {
         other.clear();
 
-        for (unsigned int k=0; k< this->_elems_time.size(); ++k) {
-            const double t = this->_elems_time[k], tmin = t-windowlen_sec, tmax=t+windowlen_sec;
+        for (unsigned int k=0; k< this->_elems.size(); ++k) {
+            const double t = this->_elems[k].time;
+            const double tmin = t-windowlen_sec;
+            const double tmax = t+windowlen_sec;
             unsigned n = 0;
-            double sum = 0.;
+            T sum = 0.;
             // left half
             for (unsigned left = k; left > 0; left--) {
-                if (this->_elems_time[left] < tmin) break;
+                if (this->_elems[left].time < tmin) break;
                 n++;
-                sum+=this->_elems_data[left];
+                sum+=this->_elems[left].data;
             }
             // right half
-            for (unsigned right = k+1; right < this->_elems_data.size(); ++right) {
-                if (this->_elems_time[right] > tmax) break;
+            for (unsigned right = k+1; right < this->_elems.size(); ++right) {
+                if (this->_elems[right].time > tmax) break;
                 n++;
-                sum+=this->_elems_data[right];
+                sum+=this->_elems[right].data;
             }
             // average window
             if (n > 0) {
@@ -107,14 +110,13 @@ public:
             }
             other.add_elem(sum, t);
         }
-        assert (other._elems_data.size() == this->_elems_data.size()); // otherwise something above is wrong
+        assert (other._elems.size() == this->_elems.size()); // otherwise something above is wrong
     }
 
     // implements Data::clear()
     void clear() {
         _defaults();
-        _elems_data.clear();
-        _elems_time.clear();
+        _elems.clear();
         _time_epoch_datastart_usec = 0;
     }
 
@@ -130,8 +132,7 @@ public:
         _sum += dataelem;
         _sqsum += pow(dataelem,2);
         if (_keepitems) {
-            _elems_data.push_back(dataelem);
-            _elems_time.push_back(datatime);
+            _elems.push_back({datatime,dataelem});
         }
         if (_min_valid) {
             if (dataelem < _min) _min = dataelem;
@@ -167,7 +168,7 @@ public:
     datapair get_first() const {
         if (_keepitems) {
             if (_n > 0) {
-                return datapair(_elems_time.front(),_elems_data.front());
+                return _elems.front();
             }
         }
         return datapair(NAN, 0);
@@ -176,10 +177,10 @@ public:
     datapair get_last() const {
         if (_keepitems) {
             if (_n > 0) {
-                return datapair(_elems_time.back(),_elems_data.back());
+                return _elems.back();
             }
         }
-        return datapair(NAN, 0);;
+        return datapair(NAN, T{});;
     }
 
     /**
@@ -194,8 +195,8 @@ public:
         // find item which is >= timeinstant
         double t_pre=0.;
         bool first = true;
-        for(unsigned int k=0; k< _elems_time.size(); ++k) {
-            const double t = _elems_time[k];
+        for(unsigned int k=0; k< _elems.size(); ++k) {
+            const double t = _elems[k].time;
             // assumption: vector is ordered by time
             if (first) {
                 t_pre = t;
@@ -241,16 +242,14 @@ public:
         assert(idx_before <= idx_after);
         if (idx_before == idx_after) {
             // hit a sample
-            val = _elems_data[idx_before];
+            val = _elems[idx_before].data;
             return true;
         } else {
             // betweem samples; need interpolation
-            const double val_pre = _elems_data[idx_before];
-            const double val_post = _elems_data[idx_after];
-            const double t_post = _elems_time[idx_after];
-            const double t_pre = _elems_time[idx_before];
-            const double m = (val_post-val_pre)/(t_post-t_pre);
-            val = val_pre + (timeinstant - t_pre)*m;
+            TimedSample pre = _elems[idx_before];
+            TimedSample post = _elems[idx_after];
+            const double m = (post.data-pre.data)/(post.time-pre.time);
+            val = pre.data + (timeinstant - pre.time)*m;
             return true;
         }
     }
@@ -337,7 +336,7 @@ public:
 
         // run over the samples now
         for (unsigned int k = idx_min_post; k <= idx_max_pre; k++) {
-            const T val = _elems_data[k];
+            const T val = _elems[k].data;
             if (first) {
                 s.min = (double)val;
                 s.max = (double)val;
@@ -391,16 +390,28 @@ public:
     }
 
     unsigned long get_epoch_dataend() const {
-        if (_elems_time.empty()) { return get_epoch_datastart(); }
-        return ((unsigned long) _elems_time.back()*1E6) + get_epoch_datastart();
+        if (_elems.empty()) { return get_epoch_datastart(); }
+        return ((unsigned long) (_elems.back().time*1E6)) + get_epoch_datastart();
     }
 
-    const std::vector<double>& get_time() const {
-        return _elems_time;
+    std::vector<double> get_time() const {
+        std::vector<double> ret(_elems.size());
+        for (std::size_t i =0; i< _elems.size();++i){
+            ret[i] = _elems[i].time;
+        }
+        return ret;
     }
 
-    const std::vector<T>& get_data() const {
-        return _elems_data;
+    std::vector<T> get_data() const {
+        std::vector<T> ret(_elems.size());
+        for (std::size_t i =0; i< _elems.size();++i){
+            ret[i] = _elems[i].data;
+        }
+        return ret;
+    }
+
+    const std::vector<TimedSample>& get_timed_data() const {
+        return _elems;
     }
 
     /**
@@ -409,8 +420,8 @@ public:
      */
     bool get_data(unsigned int index, double &tval, T &dval) const {
         if (index > _n) return false;
-        dval = _elems_data[index];
-        tval = _elems_time[index];
+        dval = _elems[index].data;
+        tval = _elems[index].time;
         return true;
     }
 
@@ -422,7 +433,7 @@ public:
                << "which only has " << _n << " elements.";
             throw std::out_of_range(ss.str());
         }
-        return { _elems_time[index], _elems_data[index]};
+        return _elems[index];
    }
 
     /**
@@ -470,8 +481,8 @@ public:
 
         double dt = 1.0 / get_rate();
         double t0 = get_min_time();
-        for (unsigned int k=0; k<_elems_time.size(); ++k) {
-            _elems_time[k] = t0 + dt*k;
+        for (unsigned int k=0; k<_elems.size(); ++k) {
+            _elems[k].time = t0 + dt*k;
         }
 
         _bad_timestamps = false;
@@ -487,10 +498,8 @@ public:
         fout << "#time, " << _name << "[" << _units << "]" << std::endl;
         fout << std::setprecision(9);
         for (unsigned int k=0; k<_n; k++) {
-            T d = _elems_data[k];
-            double t = _elems_time[k];
             // write
-            fout << t << sep << d << std::endl;
+            fout << _elems[k].time << sep << _elems[k].data << std::endl;
         }
 
         fout.close();
@@ -511,10 +520,10 @@ public:
         if (!src) return false;
         if (!src->_valid) return false;
 
-        const double tmin_src = src->_elems_time.front() + src->_time_epoch_datastart_usec/1E6;
-        const double tmax_src = src->_elems_time.back() + src->_time_epoch_datastart_usec/1E6;
-        const double tmin_me = _elems_time.front() + _time_epoch_datastart_usec/1E6;
-        const double tmax_me = _elems_time.back() + _time_epoch_datastart_usec/1E6;
+        const double tmin_src = src->_elems.front().time + src->_time_epoch_datastart_usec/1E6;
+        const double tmax_src = src->_elems.back() .time+ src->_time_epoch_datastart_usec/1E6;
+        const double tmin_me = _elems.front().time + _time_epoch_datastart_usec/1E6;
+        const double tmax_me = _elems.back().time + _time_epoch_datastart_usec/1E6;
         const double dt_sec = (_time_epoch_datastart_usec/1E6 - src->_time_epoch_datastart_usec / 1E6); ///< positive, if my data is more recent
 
         /*
@@ -523,42 +532,44 @@ public:
          */
         if (dt_sec > 0.) {
             _time_epoch_datastart_usec = src->_time_epoch_datastart_usec;
-            for (std::vector<double>::iterator it = _elems_time.begin(); it != _elems_time.end(); ++it) {
-                *it += dt_sec;  ///< correct my relative times
+            for (auto& e: _elems) {
+                e.time +=dt_sec;  ///< correct my relative times
             }
         }
 
         /*****************
          *  MERGING IN
          *****************/
-        _elems_time.reserve(_elems_time.size()+src->_elems_time.size());
-        _elems_data.reserve(_elems_data.size()+src->_elems_data.size());
+        _elems.reserve(_elems.size()+src->_elems.size());
+
         const bool do_fast_merge = (tmax_src < tmin_me) || (tmin_src > tmax_me); ///< checks for non-overlapping time ranges
         if (do_fast_merge) {
             if (dt_sec > 0.) {
                 // PREPEND: my data is later (other earlier). we want no negative time stamps, so adjust all my relative times by adding apply the offset from src
-                _elems_time.insert(_elems_time.begin(), src->_elems_time.begin(), src->_elems_time.end()); ///< prepend time
-                _elems_data.insert(_elems_data.begin(), src->_elems_data.begin(), src->_elems_data.end()); ///< prepend data
+                _elems.insert(_elems.begin(), src->_elems.begin(), src->_elems.end()); ///< prepend data
             } else {
+                _elems.insert(_elems.end(), src->_elems.begin(), src->_elems.end()); ///< append data
                 // APPEND: my data is older (other more recent). adjust other data's time relative time stamps by adding the offset to it
-                for (std::vector<double>::const_iterator it = src->_elems_time.begin(); it != src->_elems_time.end(); ++it) {
-                    _elems_time.push_back(*it - dt_sec); ///< correct other's time stamp and append at the same time
+                for (auto it = _elems.end() - src->_elems.size(); it != _elems.end(); ++it) {
+                    it->time-=dt_sec; ///< correct other's time stamp
                 }
-                _elems_data.insert(_elems_data.end(), src->_elems_data.begin(), src->_elems_data.end()); ///< append data
             }
         } else {
             // INSERT: data is overlapping...we have to sort-in every single data item
 
             //merge time and data arrays into one array (SOA to AOS) for both our data and other data
-            std::vector<TimedSample> own(_elems_time.size());
-            for (size_t cnt = 0; cnt < _elems_time.size(); cnt++) {
-                own[cnt] = TimedSample{_elems_time[cnt], _elems_data[cnt]};
-            }
+//            std::vector<TimedSample> own(_elems_time.size());
+//            for (size_t cnt = 0; cnt < _elems_time.size(); cnt++) {
+//                own[cnt] = TimedSample{_elems_time[cnt], _elems_data[cnt]};
+//            }
 
-            std::vector<TimedSample> others(src->_elems_time.size());
-            for (size_t cnt = 0; cnt < src->_elems_time.size(); cnt++) {
-                others[cnt] = TimedSample{src->_elems_time[cnt] - dt_sec, src->_elems_data[cnt]};
-            }
+//            std::vector<TimedSample> others(src->_elems_time.size());
+//            for (size_t cnt = 0; cnt < src->_elems_time.size(); cnt++) {
+//                others[cnt] = TimedSample{src->_elems_time[cnt] - dt_sec, src->_elems_data[cnt]};
+//            }
+
+            const auto& own = _elems;
+            const auto& others = src->_elems;
 
             //merge the two series
 
@@ -566,7 +577,7 @@ public:
             assert(std::is_sorted(own.begin(),own.end()));
             assert(std::is_sorted(others.begin(),others.end()));
 
-            const size_t total_size = _elems_time.size() + src->_elems_time.size();
+            const size_t total_size = _elems.size() + src->_elems.size();
             std::vector<TimedSample> merged(total_size);
             std::merge(
                         own.begin(),
@@ -577,13 +588,7 @@ public:
                         );
 
             //split array containing time and data back into separate arrays
-            _elems_time.resize(total_size);
-            _elems_data.resize(total_size);
-
-            for (std::size_t i = 0; i < total_size; ++i) {
-                _elems_time[i] = merged[i].time;
-                _elems_data[i] = merged[i].data;
-            }
+            _elems = std::move(merged);
         }
 
         // correct the other class members
@@ -591,9 +596,9 @@ public:
         _sqsum+=src->_sqsum;
         if (src->_max > _max) _max = src->_max;
         if (src->_min < _min) _min = src->_min;
-        _min_t = _elems_time.front();
-        _max_t = _elems_time.back();
-        _n+= src->_elems_data.size();
+        _min_t = _elems.front().time;
+        _max_t = _elems.back().time;
+        _n+= src->_elems.size();
 
         return true;
     }
@@ -604,8 +609,9 @@ private:
 
     // FIXME: this storage format is not all that good...pairs would be nicer, but are harder to access
     //std::vector< timeseries_elem >  _elems; // better but plotting would be tedious
-    std::vector<T>      _elems_data;    ///< only used if keepitems=true
-    std::vector<double> _elems_time;    ///< only used if keepitems=true
+//    std::vector<T>      _elems_data;    ///< only used if keepitems=true
+//    std::vector<double> _elems_time;    ///< only used if keepitems=true
+    std::vector<TimedSample> _elems;
 
     double          _sum;
     double          _sqsum;

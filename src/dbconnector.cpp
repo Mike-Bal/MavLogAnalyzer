@@ -485,9 +485,9 @@ int DBConnector::_convertDataToDoubleVector(const Data *dat,std::vector <double>
 template <typename TT>
 void DBConnector::_convertTimeSeriesToDoubleVectorTemplate(const DataTimeseries<TT> &dat, std::vector <double> &data,std::vector <double> &time)
 {
-    for (typename std::vector<TT>::const_iterator it = dat.get_data().begin(); it != dat.get_data().end(); ++it)
+    for (const auto& d : dat.get_timed_data())
     {
-        data.push_back((double)*it);
+        data.push_back(d.data);
     }
     time = dat.get_time();
 }

@@ -60,7 +60,8 @@ void DialogDataTable::_buildTable_dataevent(const DataEvent<ST>* d) {
 template <typename ST>
 void DialogDataTable::_buildTable_datatimeseries(const DataTimeseries<ST>* d) {
     const std::vector<double> t = d->get_time();
-    const std::vector<ST> s = d->get_data();
+    const auto& tmp =  d->get_data();
+    const std::vector<ST> s = tmp;
     unsigned int r = 0;
     for (unsigned int k=0; k<t.size(); k++, r++) {
         unsigned int c = 0;
