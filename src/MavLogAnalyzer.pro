@@ -22,12 +22,12 @@ MAVLINK_COMMON=$$_PRO_FILE_PWD_/../external/mavlink/gen/common
 
 # adjust the path to Qwt installation here, if necessary
 unix {
-	QWT_INSTALLPATH=/usr
+        QWT_INSTALLPATH=/usr/local/qwt-6.1.3
 	QWT_LIBPATH=$$QWT_INSTALLPATH/lib
-	QWT_INCPATH=$$QWT_INSTALLPATH/include/qwt
+        QWT_INCPATH=$$QWT_INSTALLPATH/include
 }
 win32 {
-        QWT_INSTALLPATH=C:/Qwt-6.1.0
+        QWT_INSTALLPATH=C:/Qwt-6.1.3
 	QWT_LIBPATH=$$QWT_INSTALLPATH/lib
 	QWT_INCPATH=$$QWT_INSTALLPATH/include
 }
@@ -74,7 +74,7 @@ gcc {
     QMAKE_CXXFLAGS_DEBUG += -O0
 }
 win32-msvc {
-    QMAKE_CXXFLAGS += -DQWT_DLL -DWITH_DATAREGEX
+    QMAKE_CXXFLAGS += -DQWT_DLL -DWITH_DATAREGEX -D_USE_MATH_DEFINES
 }
 
 #QMAKE_CXXFLAGS_DEBUG += -pg -p
