@@ -294,11 +294,6 @@ public:
     bool get_stats_timewindow(double tmin, double tmax, data_stats & s) const {
         if (tmax < tmin) return false;
 
-        // convert the absolute time to time of this series
-        const double time_offset = _time_epoch_datastart_usec /1E6;
-        tmin -= time_offset;
-        tmax -= time_offset;
-        // now we got internal time
         if (tmin < _min_t) tmin = _min_t;
         if (tmax > _max_t) tmax = _max_t;
 
@@ -520,64 +515,31 @@ public:
         if (!src) return false;
         if (!src->_valid) return false;
 
-        const double tmin_src = src->_elems.front().time + src->_time_epoch_datastart_usec/1E6;
-        const double tmax_src = src->_elems.back() .time+ src->_time_epoch_datastart_usec/1E6;
-        const double tmin_me = _elems.front().time + _time_epoch_datastart_usec/1E6;
-        const double tmax_me = _elems.back().time + _time_epoch_datastart_usec/1E6;
-        const double dt_sec = (_time_epoch_datastart_usec/1E6 - src->_time_epoch_datastart_usec / 1E6); ///< positive, if my data is more recent
-
-        /*
-         * we want no negative time stamps, so adjust all *my* relative times by
-         * applying the offset between src and me to *me*
-         */
-        if (dt_sec > 0.) {
-            _time_epoch_datastart_usec = src->_time_epoch_datastart_usec;
-            for (auto& e: _elems) {
-                e.time +=dt_sec;  ///< correct my relative times
-            }
-        }
+        const double tmin_src = src->_elems.front().time;
+        const double tmax_src = src->_elems.back() .time;
+        const double tmin_me = _elems.front().time;
+        const double tmax_me = _elems.back().time ;
 
         /*****************
          *  MERGING IN
          *****************/
-        _elems.reserve(_elems.size()+src->_elems.size());
 
-        const bool do_fast_merge = (tmax_src < tmin_me) || (tmin_src > tmax_me); ///< checks for non-overlapping time ranges
-        if (do_fast_merge) {
-            if (dt_sec > 0.) {
-                // PREPEND: my data is later (other earlier). we want no negative time stamps, so adjust all my relative times by adding apply the offset from src
-                _elems.insert(_elems.begin(), src->_elems.begin(), src->_elems.end()); ///< prepend data
-            } else {
-                _elems.insert(_elems.end(), src->_elems.begin(), src->_elems.end()); ///< append data
-                // APPEND: my data is older (other more recent). adjust other data's time relative time stamps by adding the offset to it
-                for (auto it = _elems.end() - src->_elems.size(); it != _elems.end(); ++it) {
-                    it->time-=dt_sec; ///< correct other's time stamp
-                }
-            }
+        if (tmax_src < tmin_me) {
+            _elems.insert(_elems.begin(), src->_elems.begin(), src->_elems.end()); ///< prepend data
+        } else if (tmin_src > tmax_me){
+            _elems.insert(_elems.end(), src->_elems.begin(), src->_elems.end()); ///< append data
         } else {
-            // INSERT: data is overlapping...we have to sort-in every single data item
-
-            //merge time and data arrays into one array (SOA to AOS) for both our data and other data
-//            std::vector<TimedSample> own(_elems_time.size());
-//            for (size_t cnt = 0; cnt < _elems_time.size(); cnt++) {
-//                own[cnt] = TimedSample{_elems_time[cnt], _elems_data[cnt]};
-//            }
-
-//            std::vector<TimedSample> others(src->_elems_time.size());
-//            for (size_t cnt = 0; cnt < src->_elems_time.size(); cnt++) {
-//                others[cnt] = TimedSample{src->_elems_time[cnt] - dt_sec, src->_elems_data[cnt]};
-//            }
+            // Merge: data is overlapping...we have to sort-in every single data item
 
             const auto& own = _elems;
             const auto& others = src->_elems;
-
-            //merge the two series
 
             //c++11:
             assert(std::is_sorted(own.begin(),own.end()));
             assert(std::is_sorted(others.begin(),others.end()));
 
-            const size_t total_size = _elems.size() + src->_elems.size();
+            //merge into new buffer
+            const size_t total_size = own.size() + others.size();
             std::vector<TimedSample> merged(total_size);
             std::merge(
                         own.begin(),
@@ -586,16 +548,14 @@ public:
                         others.end(),
                         merged.begin()
                         );
-
-            //split array containing time and data back into separate arrays
             _elems = std::move(merged);
         }
 
         // correct the other class members
         _sum+=src->_sum;
         _sqsum+=src->_sqsum;
-        if (src->_max > _max) _max = src->_max;
-        if (src->_min < _min) _min = src->_min;
+        _max= std::max(_max,src->_max);
+        _min= std::min(_min,src->_min);
         _min_t = _elems.front().time;
         _max_t = _elems.back().time;
         _n+= src->_elems.size();
@@ -605,12 +565,8 @@ public:
 
 private:
     std::size_t    _n;
-    bool            _keepitems;    
+    bool            _keepitems;
 
-    // FIXME: this storage format is not all that good...pairs would be nicer, but are harder to access
-    //std::vector< timeseries_elem >  _elems; // better but plotting would be tedious
-//    std::vector<T>      _elems_data;    ///< only used if keepitems=true
-//    std::vector<double> _elems_time;    ///< only used if keepitems=true
     std::vector<TimedSample> _elems;
 
     double          _sum;
